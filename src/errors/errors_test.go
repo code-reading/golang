@@ -10,6 +10,9 @@ import (
 	"testing"
 )
 
+//1.通过new操作实例化两个具有相同error text的实例对象是不相等的, 因为实例地址不同;
+//2.通过new操作实例化两个实例对象, 其error text及实例对象地址均不相同;
+//3.复制一个new操作实例化的实例对象， 是相等的;
 func TestNewEqual(t *testing.T) {
 	// Different allocations should not be equal.
 	if errors.New("abc") == errors.New("abc") {
@@ -26,6 +29,7 @@ func TestNewEqual(t *testing.T) {
 	}
 }
 
+//1.error text文本比较, 通过New方法创建error text的对象, 其通过Error()string方法返回的值是相同的;
 func TestErrorMethod(t *testing.T) {
 	err := errors.New("abc")
 	if err.Error() != "abc" {
@@ -33,6 +37,7 @@ func TestErrorMethod(t *testing.T) {
 	}
 }
 
+//New一个errors对象示例
 func ExampleNew() {
 	err := errors.New("emit macho dwarf: elf header corrupted")
 	if err != nil {
@@ -43,6 +48,7 @@ func ExampleNew() {
 
 // The fmt package's Errorf function lets us use the package's formatting
 // features to create descriptive error messages.
+//fmt.Errorf方法可以对error messages 进行格式化处理， 以更友好清晰的方式输出error
 func ExampleNew_errorf() {
 	const name, id = "bimmler", 17
 	err := fmt.Errorf("user %q (id %d) not found", name, id)

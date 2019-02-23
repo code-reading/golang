@@ -10,6 +10,7 @@ import (
 )
 
 // MyError is an error implementation that includes a time and message.
+//MyError 是一个支持时间和消息内容的自定义error实现
 type MyError struct {
 	When time.Time
 	What string
