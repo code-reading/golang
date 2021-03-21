@@ -11,15 +11,20 @@ import (
 	"unsafe"
 )
 
+// 一组临时对象集
 // A Pool is a set of temporary objects that may be individually saved and
 // retrieved.
 //
+// 临时对象可能随时被删除 而不会提醒
 // Any item stored in the Pool may be removed automatically at any time without
 // notification. If the Pool holds the only reference when this happens, the
 // item might be deallocated.
 //
+// 在多个goroutines同时使用时 是并发安全的
 // A Pool is safe for use by multiple goroutines simultaneously.
 //
+// 池的目的是缓存已分配但未使用的项目，以供以后重用，减轻垃圾收集器的压力。
+// 也就是说，它很容易建立有效的，线程安全的空闲列表。但是，它并不适合所有场景。
 // Pool's purpose is to cache allocated but unused items for later reuse,
 // relieving pressure on the garbage collector. That is, it makes it easy to
 // build efficient, thread-safe free lists. However, it is not suitable for all
@@ -30,17 +35,22 @@ import (
 // clients of a package. Pool provides a way to amortize allocation overhead
 // across many clients.
 //
+// 应用场景
+// fmt包中有一个很好使用Pool的示例，该包维护着动态大小的临时输出缓冲区存储。
+// 在多goroutines显示打印的负载和静默时能伸缩store大小;
 // An example of good use of a Pool is in the fmt package, which maintains a
 // dynamically-sized store of temporary output buffers. The store scales under
 // load (when many goroutines are actively printing) and shrinks when
 // quiescent.
-//
+// 不推荐的场景: 短期的临时对象
+//另一方面，作为短期对象的一部分维护的空闲列表不适用于Pool，因为在这种情况下开销无法很好地摊销。 让此类对象实现自己的空闲列表会更有效。
 // On the other hand, a free list maintained as part of a short-lived object is
 // not a suitable use for a Pool, since the overhead does not amortize well in
 // that scenario. It is more efficient to have such objects implement their own
 // free list.
 //
 // A Pool must not be copied after first use.
+// 每个Pool独立使用， noCopy
 type Pool struct {
 	noCopy noCopy
 
@@ -50,6 +60,7 @@ type Pool struct {
 	// New optionally specifies a function to generate
 	// a value when Get would otherwise return nil.
 	// It may not be changed concurrently with calls to Get.
+	//自定义的对象创建回调函数，当 pool 中无可用对象时会调用此函数
 	New func() interface{}
 }
 
@@ -85,6 +96,7 @@ func poolRaceAddr(x interface{}) unsafe.Pointer {
 }
 
 // Put adds x to the pool.
+// 将x 添加到pool 但是 x 会在gc时被清楚掉
 func (p *Pool) Put(x interface{}) {
 	if x == nil {
 		return
@@ -121,7 +133,9 @@ func (p *Pool) Put(x interface{}) {
 //
 // If Get would otherwise return nil and p.New is non-nil, Get returns
 // the result of calling p.New.
+// Get 返回 p.New函数的值
 func (p *Pool) Get() interface{} {
+	// 如果开启了race 则先关闭
 	if race.Enabled {
 		race.Disable()
 	}
