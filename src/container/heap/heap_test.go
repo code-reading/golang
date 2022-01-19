@@ -38,6 +38,7 @@ func (h myHeap) verify(t *testing.T, i int) {
 	j1 := 2*i + 1
 	j2 := 2*i + 2
 	if j1 < n {
+		// 最小堆 左右都比顶点大
 		if h.Less(j1, i) {
 			t.Errorf("heap invariant invalidated [%d] = %d > [%d] = %d", i, h[i], j1, h[j1])
 			return
@@ -45,6 +46,7 @@ func (h myHeap) verify(t *testing.T, i int) {
 		h.verify(t, j1)
 	}
 	if j2 < n {
+		// 最小堆 左右都比顶点大
 		if h.Less(j2, i) {
 			t.Errorf("heap invariant invalidated [%d] = %d > [%d] = %d", i, h[i], j1, h[j2])
 			return

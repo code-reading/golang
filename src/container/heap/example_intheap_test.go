@@ -13,9 +13,13 @@ import (
 // An IntHeap is a min-heap of ints.
 type IntHeap []int
 
-func (h IntHeap) Len() int           { return len(h) }
+func (h IntHeap) Len() int { return len(h) }
+
+// < 小于 构建最小堆, > 构建最大堆
 func (h IntHeap) Less(i, j int) bool { return h[i] < h[j] }
-func (h IntHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
+// 交换两个值
+func (h IntHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 func (h *IntHeap) Push(x interface{}) {
 	// Push and Pop use pointer receivers because they modify the slice's length,
@@ -35,7 +39,9 @@ func (h *IntHeap) Pop() interface{} {
 // and removes them in order of priority.
 func Example_intHeap() {
 	h := &IntHeap{2, 1, 5}
+	// 初始化一个堆, 构建一个堆
 	heap.Init(h)
+	// 添加元素
 	heap.Push(h, 3)
 	fmt.Printf("minimum: %d\n", (*h)[0])
 	for h.Len() > 0 {
