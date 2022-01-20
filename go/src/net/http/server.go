@@ -612,7 +612,8 @@ const debugServerConnections = false
 // Create new connection from rwc.
 func (srv *Server) newConn(rwc net.Conn) *conn {
 	c := &conn{
-		server: srv,
+		server: srv, // 这个值后面逻辑处理会用到, 这个srv 就是服务初始化时的Server实例，里面记录了addr, 和Handler
+		// Handler为路由器, 为nil 则使用标准库自带的路由器
 		rwc:    rwc,
 	}
 	if debugServerConnections {
@@ -1808,7 +1809,7 @@ func (c *conn) serve(ctx context.Context) {
 		}
 	}()
 
-	if tlsConn, ok := c.rwc.(*tls.Conn); ok {
+	if tlsConn, ok := c.rwc.(*tls.Conn); ok { // 判断是否为tls conn
 		if d := c.server.ReadTimeout; d > 0 {
 			c.rwc.SetReadDeadline(time.Now().Add(d))
 		}
@@ -1848,8 +1849,8 @@ func (c *conn) serve(ctx context.Context) {
 	c.cancelCtx = cancelCtx
 	defer cancelCtx()
 
-	c.r = &connReader{conn: c}
-	c.bufr = newBufioReader(c.r)
+	c.r = &connReader{conn: c} // 读连接
+	c.bufr = newBufioReader(c.r) // 建立读取buffer
 	c.bufw = newBufioWriterSize(checkConnErrorWriter{c}, 4<<10)
 
 	for {
@@ -1858,7 +1859,7 @@ func (c *conn) serve(ctx context.Context) {
 			// If we read any bytes off the wire, we're active.
 			c.setState(c.rwc, StateActive, runHooks)
 		}
-		if err != nil {
+		if err != nil { // 读出错的处理逻辑
 			const errorHeaders = "\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
 
 			switch {
@@ -1912,7 +1913,7 @@ func (c *conn) serve(ctx context.Context) {
 			return
 		}
 
-		c.curReq.Store(w)
+		c.curReq.Store(w) // 保存当前w
 
 		if requestBodyRemains(req.Body) {
 			registerOnHitEOF(req.Body, w.conn.r.startBackgroundRead)
@@ -1927,6 +1928,7 @@ func (c *conn) serve(ctx context.Context) {
 		// in parallel even if their responses need to be serialized.
 		// But we're not going to implement HTTP pipelining because it
 		// was never deployed in the wild and the answer is HTTP/2.
+		// step5 关键步骤， 这里调用ServeHTTP 进行业务逻辑处理
 		serverHandler{c.server}.ServeHTTP(w, w.req)
 		w.cancelCtx()
 		if c.hijacked() {
@@ -2040,6 +2042,9 @@ func requestBodyRemains(rc io.ReadCloser) bool {
 // ordinary functions as HTTP handlers. If f is a function
 // with the appropriate signature, HandlerFunc(f) is a
 // Handler that calls f.
+// HandlerFunc 实现了Handler 接口
+// HandlerFunc 就相当于一个适配器， 就是实现一个接口Handler， 然后调用Handler的ServeHTTP方法就是调用
+// HandlerFunc(f) 就相当于调研f(w,r)
 type HandlerFunc func(ResponseWriter, *Request)
 
 // ServeHTTP calls f(w, r).
@@ -2193,6 +2198,7 @@ func RedirectHandler(url string, code int) Handler {
 	return &redirectHandler{url, code}
 }
 
+// ServeMux 是一个HTTP request 多路复用器
 // ServeMux is an HTTP request multiplexer.
 // It matches the URL of each incoming request against a list of registered
 // patterns and calls the handler for the pattern that
@@ -2294,6 +2300,7 @@ func (mux *ServeMux) match(path string) (h Handler, pattern string) {
 
 	// Check for longest valid match.  mux.es contains all patterns
 	// that end in / sorted from longest to shortest.
+	// 匹配特定的pattern 就是有这个路由前缀的
 	for _, e := range mux.es {
 		if strings.HasPrefix(path, e.pattern) {
 			return e.h, e.pattern
@@ -2345,9 +2352,9 @@ func (mux *ServeMux) shouldRedirectRLocked(host, path string) bool {
 
 // Handler returns the handler to use for the given request,
 // consulting r.Method, r.Host, and r.URL.Path. It always returns
-// a non-nil handler. If the path is not in its canonical form, the
+// a non-nil handler. If the path is not in its canonical form(规范形式), the
 // handler will be an internally-generated handler that redirects
-// to the canonical path. If the host contains a port, it is ignored
+// to the canonical path(规范路径). If the host contains a port, it is ignored
 // when matching handlers.
 //
 // The path and host are used unchanged for CONNECT requests.
@@ -2358,6 +2365,7 @@ func (mux *ServeMux) shouldRedirectRLocked(host, path string) bool {
 //
 // If there is no registered handler that applies to the request,
 // Handler returns a ``page not found'' handler and an empty pattern.
+// step02 具体分配路由处理器的handler
 func (mux *ServeMux) Handler(r *Request) (h Handler, pattern string) {
 
 	// CONNECT requests are not canonicalized.
@@ -2394,17 +2402,21 @@ func (mux *ServeMux) Handler(r *Request) (h Handler, pattern string) {
 
 // handler is the main implementation of Handler.
 // The path is known to be in canonical form, except for CONNECT methods.
+// step03 规范形式的handler
 func (mux *ServeMux) handler(host, path string) (h Handler, pattern string) {
 	mux.mu.RLock()
 	defer mux.mu.RUnlock()
 
 	// Host-specific pattern takes precedence over generic ones
+	// 指定主机匹配
 	if mux.hosts {
 		h, pattern = mux.match(host + path)
 	}
+	// 路由匹配
 	if h == nil {
 		h, pattern = mux.match(path)
 	}
+	// 没有找到就返回NotFound
 	if h == nil {
 		h, pattern = NotFoundHandler(), ""
 	}
@@ -2413,6 +2425,7 @@ func (mux *ServeMux) handler(host, path string) (h Handler, pattern string) {
 
 // ServeHTTP dispatches the request to the handler whose
 // pattern most closely matches the request URL.
+// ServeHTTP将请求分派给就近符合请求路由的处理器handler处理
 func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 	if r.RequestURI == "*" {
 		if r.ProtoAtLeast(1, 1) {
@@ -2421,12 +2434,15 @@ func (mux *ServeMux) ServeHTTP(w ResponseWriter, r *Request) {
 		w.WriteHeader(StatusBadRequest)
 		return
 	}
-	h, _ := mux.Handler(r)
+	// step 01  分配具体的handler
+	h, _ := mux.Handler(r) // 返回对应的handler 和 pattern
+	// h.ServeHTTP 执行的就是HandlerFunc的ServeHTTP
 	h.ServeHTTP(w, r)
 }
 
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
+// 如果注册的pattern 已经存在了就会报panic
 func (mux *ServeMux) Handle(pattern string, handler Handler) {
 	mux.mu.Lock()
 	defer mux.mu.Unlock()
@@ -2475,7 +2491,7 @@ func (mux *ServeMux) HandleFunc(pattern string, handler func(ResponseWriter, *Re
 	if handler == nil {
 		panic("http: nil handler")
 	}
-	mux.Handle(pattern, HandlerFunc(handler))
+	mux.Handle(pattern, HandlerFunc(handler)) // 类型强转
 }
 
 // Handle registers the handler for the given pattern
@@ -2857,13 +2873,14 @@ type serverHandler struct {
 
 func (sh serverHandler) ServeHTTP(rw ResponseWriter, req *Request) {
 	handler := sh.srv.Handler
-	if handler == nil {
+	if handler == nil { // 如果用户没有提供路由器， 就用默认的路由器 DefaultServeMux
 		handler = DefaultServeMux
 	}
 	if req.RequestURI == "*" && req.Method == "OPTIONS" {
 		handler = globalOptionsHandler{}
 	}
 
+	// 充许在查询中使用分号
 	if req.URL != nil && strings.Contains(req.URL.RawQuery, ";") {
 		var allowQuerySemicolonsInUse int32
 		req = req.WithContext(context.WithValue(req.Context(), silenceSemWarnContextKey, func() {
@@ -2875,7 +2892,9 @@ func (sh serverHandler) ServeHTTP(rw ResponseWriter, req *Request) {
 			}
 		}()
 	}
-
+	// 分配handler
+	// 如果是 DefaultServeMux
+	// 则这里调用的是 ServeMux.ServeHTTP方法
 	handler.ServeHTTP(rw, req)
 }
 
@@ -2924,7 +2943,7 @@ func (srv *Server) ListenAndServe() error {
 	if addr == "" {
 		addr = ":http"
 	}
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr) // step1 监听指定tcp端口
 	if err != nil {
 		return err
 	}
@@ -2975,7 +2994,7 @@ func (srv *Server) Serve(l net.Listener) error {
 	}
 
 	origListener := l
-	l = &onceCloseListener{Listener: l}
+	l = &onceCloseListener{Listener: l} //listener 通过once 保证只关闭一次
 	defer l.Close()
 
 	if err := srv.setupHTTP2_Serve(); err != nil {
@@ -2999,7 +3018,7 @@ func (srv *Server) Serve(l net.Listener) error {
 
 	ctx := context.WithValue(baseCtx, ServerContextKey, srv)
 	for {
-		rw, err := l.Accept()
+		rw, err := l.Accept() // step2 接收客户端请求connection;
 		if err != nil {
 			select {
 			case <-srv.getDoneChan():
@@ -3029,9 +3048,9 @@ func (srv *Server) Serve(l net.Listener) error {
 			}
 		}
 		tempDelay = 0
-		c := srv.newConn(rw)
+		c := srv.newConn(rw) //step3 基于客户端的请求，新建一个连接
 		c.setState(c.rwc, StateNew, runHooks) // before Serve can return
-		go c.serve(connCtx)
+		go c.serve(connCtx) // step4 新建协程处理这个连接
 	}
 }
 
@@ -3181,7 +3200,7 @@ func logf(r *Request, format string, args ...interface{}) {
 //
 // ListenAndServe always returns a non-nil error.
 func ListenAndServe(addr string, handler Handler) error {
-	server := &Server{Addr: addr, Handler: handler}
+	server := &Server{Addr: addr, Handler: handler} // 实例化一个Server对象
 	return server.ListenAndServe()
 }
 
