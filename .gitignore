@@ -1,0 +1,17 @@
+go/bin/
+go/AUTHORS
+go/CONTRIBUTING.md
+go/CONTRIBUTORS
+go/LICENSE
+go/PATENTS
+go/README.md
+go/SECURITY.md
+go/VERSION
+go/api
+go/bin
+go/codereview.cfg
+go/doc
+go/lib
+go/misc
+go/pkg
+go/test
