@@ -3,3 +3,4 @@
 package sys
 
 const StackGuardMultiplierDefault = 1
+const TheVersion = `go1.17.6`
