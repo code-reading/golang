@@ -1,11 +1,15 @@
-# http.ListenAndServe 机制 源码分析
-
 <!-- vscode-markdown-toc -->
 * 1. [说明](#)
 * 2. [分析概要](#-1)
 	* 2.1. [ 名词解释](#-1)
 	* 2.2. [http包执行流程](#http)
+	* 2.3. [http执行流程小结](#http-1)
 * 3. [源码分析](#-1)
+	* 3.1. [端口监听](#-1)
+	* 3.2. [接收请求](#-1)
+	* 3.3. [读取请求并解析](#-1)
+	* 3.4. [路由分配handler](#handler)
+	* 3.5. [路由分配handler](#handler-1)
 
 <!-- vscode-markdown-toc-config
 	numbering=true
@@ -42,7 +46,7 @@ Listen Socket接受客户端的请求，得到Client Socket，接下来通过Cli
 处理客户端请求，首先从Client Socket读取HTTP请求的协议头，如果是POST方法，还可能要读取客户端提交的数据，然后交给相应的handler处理请求，handler处理完，将数据通过Client Socket返回给客户端。
 
 ![一个http连接处理流程](../resources/images/http-connect-flow.png)
-### http执行流程小结
+###  2.3. <a name='http-1'></a>http执行流程小结
 
 <strong>1、启动监听服务</strong>
 实例化Server。
@@ -73,7 +77,7 @@ f.选择handler
 
 ##  3. <a name='-1'></a>源码分析
 
-### 端口监听
+###  3.1. <a name='-1'></a>端口监听
 搭建 web 服务器的时候有行代码：http.ListenAndServe(":9999", nil)
 
 http.ListenAndServe 实际上，初始化一个server对象，调用了 server 的 ListenAndServe 方法
@@ -103,7 +107,7 @@ func (srv *Server) ListenAndServe() error {
 }
 ```
 
-### 接收请求
+###  3.2. <a name='-1'></a>接收请求
 
 ```go
 for {
@@ -134,7 +138,7 @@ for {
 
 <strong>补充</strong>：每个请求都会创建一个对应的goroutine去处理，所以各个请求之间是相互不影响的，同时提高并发性能。
 
-### 读取请求并解析
+###  3.3. <a name='-1'></a>读取请求并解析
 
 ```go
 for {
@@ -157,7 +161,7 @@ readRequest 便是读取数据，解析请求的地方，包括解析请求的he
 
 最后将请求的数据赋值到Request，并初始化Response对象，供业务层调用。
 
-### 路由分配handler
+###  3.4. <a name='handler'></a>路由分配handler
 上面关键流程已经看到了serverHandler{c.server}.ServeHTTP(w, w.req)，这个实际上就是调用最开始在main函数定义的handler，并将处理好的Request、Response对象作为参数传入。
 
 ```go
@@ -181,7 +185,7 @@ func (sh serverHandler) ServeHTTP(rw ResponseWriter, req *Request) {
 
 所以，你看在ServeHTTP中，handler = DefaultServeMux，我们使用了默认的路由器，如果 ListenAndServe 不是传nil的话，那就会使用你自己定义的路由器。
 
-### 路由分配handler
+###  3.5. <a name='handler-1'></a>路由分配handler
 好了，我们知道了使用默认的路由器（DefaultServeMux），再看看它是怎么根据路径找对应handler的吧
 
 路由的过程里面只要弄懂下面的三个问题，就知道 Go 自带的路由是怎么运行的了：
