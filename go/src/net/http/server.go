@@ -2237,9 +2237,9 @@ func RedirectHandler(url string, code int) Handler {
 // .. elements or repeated slashes to an equivalent, cleaner URL.
 type ServeMux struct {
 	mu    sync.RWMutex        // 锁，由于请求涉及到并发处理，因此这里需要一个锁机制
-	m     map[string]muxEntry // 路由规则，一个string对应一个mux实体，这里的string就是注册的路由表达式
-	es    []muxEntry          // slice of entries sorted from longest to shortest.
-	hosts bool                // whether any patterns contain hostnames
+	m     map[string]muxEntry // 路由表，一个string对应一个mux实体，这里的string就是注册的路由表达式
+	es    []muxEntry          // slice of entries sorted from longest to shortest.  有序数组，由长到短维护所有后缀为/的路由地址
+	hosts bool                // whether any patterns contain hostnames 布尔类型的hosts属性标记路由中是否带有主机名，若hosts值为true，则路由的起始不能为/
 }
 
 type muxEntry struct {
@@ -2250,11 +2250,25 @@ type muxEntry struct {
 // NewServeMux allocates and returns a new ServeMux.
 func NewServeMux() *ServeMux { return new(ServeMux) }
 
+/*
+这里为什么可以在声明前使用变量？Dave Cheney告诉我包级别的变量与声明顺序无关，
+还告诉我这种问题以后去slack上自己问，编译器做初始化工作的时候会首先初始化包级别的变量，
+因此无论声明在哪里都可以使用。
+*/
 // DefaultServeMux is the default ServeMux used by Serve.
 var DefaultServeMux = &defaultServeMux
 
 var defaultServeMux ServeMux
 
+/*
+1.处理无效路由
+
+2.对于斜杠的处理，代替无效的多个斜杠
+
+3.移除所有的.替换为等效path
+
+简单来说就是对路径进行处理为等效最短路径，使之可以在后续查找路由表的过程中可以查找到相应键值对。
+*/
 // cleanPath returns the canonical path for p, eliminating . and .. elements.
 func cleanPath(p string) string {
 	if p == "" {
@@ -2294,6 +2308,7 @@ func stripHostPort(h string) string {
 // Most-specific (longest) pattern wins.
 func (mux *ServeMux) match(path string) (h Handler, pattern string) {
 	// Check for exact match first.
+	// 精确匹配
 	v, ok := mux.m[path]
 	if ok {
 		return v.h, v.pattern
@@ -2302,6 +2317,7 @@ func (mux *ServeMux) match(path string) (h Handler, pattern string) {
 	// Check for longest valid match.  mux.es contains all patterns
 	// that end in / sorted from longest to shortest.
 	// 匹配特定的pattern 就是有这个路由前缀的
+	// 长字符串模式优先级大于短字符串模式，优先匹配长字符串
 	for _, e := range mux.es {
 		if strings.HasPrefix(path, e.pattern) {
 			return e.h, e.pattern
@@ -2463,10 +2479,11 @@ func (mux *ServeMux) Handle(pattern string, handler Handler) {
 	}
 	e := muxEntry{h: handler, pattern: pattern}
 	mux.m[pattern] = e
+	// 对于后缀为slash/的路径，按照长度大小写入mux.es中
 	if pattern[len(pattern)-1] == '/' {
 		mux.es = appendSorted(mux.es, e)
 	}
-
+	// 如果路由首字母不是'/' 则包含主机名
 	if pattern[0] != '/' {
 		mux.hosts = true
 	}
@@ -2488,6 +2505,14 @@ func appendSorted(es []muxEntry, e muxEntry) []muxEntry {
 }
 
 // HandleFunc registers the handler function for the given pattern.
+// 把方法handler转换成HandlerFunc类型，即实现了Handler接口；再执行Handle方法
+// Handler是一个接口
+// HandlerFunc是Handler类型，是一个适配器函数
+/*
+HandleFunc优势
+HandleFunc函数的存在使得我们可以直接将一个func(ResponseWriter, *Request)类型的函数作为handler，
+而不再需要实现Handler这个接口和自定义一个实现ServeHTTP函数的类型了，HandleFunc可以非常简便的为url注册路径。
+*/
 func (mux *ServeMux) HandleFunc(pattern string, handler func(ResponseWriter, *Request)) {
 	if handler == nil {
 		panic("http: nil handler")
