@@ -24,8 +24,11 @@
 ###  2.1. <a name='-1'></a> 名词解释
 
 Request：用户请求的信息，用来解析用户的请求信息，包括post，get，Cookie，url等信息。
+
 Response:服务器需要反馈给客户端的信息。
+
 Conn：用户的每次请求链接。
+
 Handle:处理请求和生成返回信息的处理逻辑。
 
 ###  2.2. <a name='http'></a>http包执行流程
