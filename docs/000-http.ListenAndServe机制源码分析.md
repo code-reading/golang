@@ -8,8 +8,8 @@
 	* 3.1. [端口监听](#-1)
 	* 3.2. [接收请求](#-1)
 	* 3.3. [读取请求并解析](#-1)
-	* 3.4. [路由分配handler](#handler)
-	* 3.5. [路由分配handler](#handler-1)
+	* 3.4. [选择路由器](#-1)
+	* 3.5. [路由分配handler](#handler)
 
 <!-- vscode-markdown-toc-config
 	numbering=true
@@ -161,7 +161,7 @@ readRequest 便是读取数据，解析请求的地方，包括解析请求的he
 
 最后将请求的数据赋值到Request，并初始化Response对象，供业务层调用。
 
-###  3.4. <a name='handler'></a>路由分配handler
+###  3.4. <a name='-1'></a>选择路由器
 上面关键流程已经看到了serverHandler{c.server}.ServeHTTP(w, w.req)，这个实际上就是调用最开始在main函数定义的handler，并将处理好的Request、Response对象作为参数传入。
 
 ```go
@@ -181,11 +181,11 @@ func (sh serverHandler) ServeHTTP(rw ResponseWriter, req *Request) {
 }
 ```
 
-还记得吗，我们最上面是这样调用的 http.ListenAndServe(":9999", nil)，第二个参数是nil。
+还记得吗，最上面是这样调用的 http.ListenAndServe(":9999", nil)，第二个参数是nil。
 
 所以，你看在ServeHTTP中，handler = DefaultServeMux，我们使用了默认的路由器，如果 ListenAndServe 不是传nil的话，那就会使用你自己定义的路由器。
 
-###  3.5. <a name='handler-1'></a>路由分配handler
+###  3.5. <a name='handler'></a>路由分配handler
 好了，我们知道了使用默认的路由器（DefaultServeMux），再看看它是怎么根据路径找对应handler的吧
 
 路由的过程里面只要弄懂下面的三个问题，就知道 Go 自带的路由是怎么运行的了：
