@@ -614,7 +614,7 @@ func (srv *Server) newConn(rwc net.Conn) *conn {
 	c := &conn{
 		server: srv, // 这个值后面逻辑处理会用到, 这个srv 就是服务初始化时的Server实例，里面记录了addr, 和Handler
 		// Handler为路由器, 为nil 则使用标准库自带的路由器
-		rwc:    rwc,
+		rwc: rwc,
 	}
 	if debugServerConnections {
 		c.rwc = newLoggingConn("server", c.rwc)
@@ -1849,11 +1849,12 @@ func (c *conn) serve(ctx context.Context) {
 	c.cancelCtx = cancelCtx
 	defer cancelCtx()
 
-	c.r = &connReader{conn: c} // 读连接
+	c.r = &connReader{conn: c}   // 读连接
 	c.bufr = newBufioReader(c.r) // 建立读取buffer
 	c.bufw = newBufioWriterSize(checkConnErrorWriter{c}, 4<<10)
 
 	for {
+		// 循环读取用户请求
 		w, err := c.readRequest(ctx)
 		if c.r.remain != c.server.initialReadLimitSize() {
 			// If we read any bytes off the wire, we're active.
@@ -1941,7 +1942,7 @@ func (c *conn) serve(ctx context.Context) {
 			}
 			return
 		}
-		c.setState(c.rwc, StateIdle, runHooks)
+		c.setState(c.rwc, StateIdle, runHooks) // 设置状态为StateIdle
 		c.curReq.Store((*response)(nil))
 
 		if !w.conn.server.doKeepAlives() {
@@ -2235,10 +2236,10 @@ func RedirectHandler(url string, code int) Handler {
 // header, stripping the port number and redirecting any request containing . or
 // .. elements or repeated slashes to an equivalent, cleaner URL.
 type ServeMux struct {
-	mu    sync.RWMutex
-	m     map[string]muxEntry
-	es    []muxEntry // slice of entries sorted from longest to shortest.
-	hosts bool       // whether any patterns contain hostnames
+	mu    sync.RWMutex        // 锁，由于请求涉及到并发处理，因此这里需要一个锁机制
+	m     map[string]muxEntry // 路由规则，一个string对应一个mux实体，这里的string就是注册的路由表达式
+	es    []muxEntry          // slice of entries sorted from longest to shortest.
+	hosts bool                // whether any patterns contain hostnames
 }
 
 type muxEntry struct {
@@ -2943,7 +2944,7 @@ func (srv *Server) ListenAndServe() error {
 	if addr == "" {
 		addr = ":http"
 	}
-	ln, err := net.Listen("tcp", addr) // step1 监听指定tcp端口
+	ln, err := net.Listen("tcp", addr) // step1 打开tcp连接， 监听指定端口
 	if err != nil {
 		return err
 	}
@@ -3018,24 +3019,27 @@ func (srv *Server) Serve(l net.Listener) error {
 
 	ctx := context.WithValue(baseCtx, ServerContextKey, srv)
 	for {
-		rw, err := l.Accept() // step2 接收客户端请求connection;
+		// 接收客户端请求 rw: 客户请求的信息
+		// Accept从处于 established 状态的连接队列头部取出一个已经完成的连接
+		rw, err := l.Accept() // step2 接收客户端请求信息rw;
 		if err != nil {
+			// 在判断错误之前，判断收到结束信号直接退出
 			select {
 			case <-srv.getDoneChan():
 				return ErrServerClosed
 			default:
 			}
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+			if ne, ok := err.(net.Error); ok && ne.Temporary() { // 发生网络错误时，则延时等待并重试
 				if tempDelay == 0 {
-					tempDelay = 5 * time.Millisecond
+					tempDelay = 5 * time.Millisecond // 第一次重试间隔时间为5毫秒
 				} else {
-					tempDelay *= 2
+					tempDelay *= 2 // 之后每次重试时间为2的指数级
 				}
-				if max := 1 * time.Second; tempDelay > max {
+				if max := 1 * time.Second; tempDelay > max { // 重试间隔最大为1秒
 					tempDelay = max
 				}
 				srv.logf("http: Accept error: %v; retrying in %v", err, tempDelay)
-				time.Sleep(tempDelay)
+				time.Sleep(tempDelay) // 休眠
 				continue
 			}
 			return err
@@ -3048,9 +3052,9 @@ func (srv *Server) Serve(l net.Listener) error {
 			}
 		}
 		tempDelay = 0
-		c := srv.newConn(rw) //step3 基于客户端的请求，新建一个连接
-		c.setState(c.rwc, StateNew, runHooks) // before Serve can return
-		go c.serve(connCtx) // step4 新建协程处理这个连接
+		c := srv.newConn(rw)                  //step3 基于客户端的请求，新建一个连接
+		c.setState(c.rwc, StateNew, runHooks) // before Serve can return 设置状态为StateNew
+		go c.serve(connCtx)                   // step4 新建协程处理这个连接
 	}
 }
 

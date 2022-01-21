@@ -9,6 +9,8 @@ import (
 // 分析http.ListenAndServe机制
 func main() {
 	http.HandleFunc("/", indexHandler)
+	// 监听TCP地址
+	// handler通常设为nil,此时会使用DefaultServeMux(默认路由器)
 	log.Fatal(http.ListenAndServe(":9999", nil))
 }
 
