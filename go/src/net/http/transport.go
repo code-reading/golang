@@ -578,6 +578,7 @@ func (t *Transport) roundTrip(req *Request) (*Response, error) {
 		// host (for http or https), the http proxy, or the http proxy
 		// pre-CONNECTed to https server. In any case, we'll be ready
 		// to send it requests.
+		// 获取连接，通过两种方法获取用于发送请求的连接（1、在队列中闲置的连接，2、创建新连接）
 		pconn, err := t.getConn(treq, cm)
 		if err != nil {
 			t.setReqCanceler(cancelKey, nil)
@@ -591,6 +592,7 @@ func (t *Transport) roundTrip(req *Request) (*Response, error) {
 			t.setReqCanceler(cancelKey, nil) // not cancelable with CancelRequest
 			resp, err = pconn.alt.RoundTrip(req)
 		} else {
+			// 处理响应
 			resp, err = pconn.roundTrip(treq)
 		}
 		if err == nil {

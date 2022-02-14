@@ -722,6 +722,7 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 		reqs = append(reqs, req)
 		var err error
 		var didTimeout func() bool
+		// send 处理请求
 		if resp, didTimeout, err = c.send(req, deadline); err != nil {
 			// c.send() always closes req.Body
 			reqBodyClosed = true
