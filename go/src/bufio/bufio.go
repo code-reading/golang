@@ -33,11 +33,15 @@ var (
 
 // Reader implements buffering for an io.Reader object.
 type Reader struct {
-	buf          []byte
-	rd           io.Reader // reader provided by the client
-	r, w         int       // buf read and write positions
-	err          error
-	lastByte     int // last byte read for UnreadByte; -1 means invalid
+	buf []byte    // 缓存
+	rd  io.Reader // reader provided by the client 底层的io.Reader
+	// r: 从buf中读走的字节(偏移); w:buf 中填充内容的偏移
+	// w -r 是buf中可被读的长度(缓存数据的大小), 也是Buffered()方法的返回值
+	r, w int   // buf read and write positions
+	err  error // 读过程中遇到的错误
+	// 最后一次读到的字节
+	lastByte int // last byte read for UnreadByte; -1 means invalid
+	// 最后一次读到Rune的大小
 	lastRuneSize int // size of last rune read for UnreadRune; -1 means invalid
 }
 
@@ -206,6 +210,7 @@ fmt.Printf("%s\n", b)
 }
 
 */
+// 只是“窥探”一下 Reader 中没有读取的 n 个字节。好比栈数据结构中的取栈顶元素，但不出栈。
 func (b *Reader) Peek(n int) ([]byte, error) {
 	if n < 0 {
 		return nil, ErrNegativeCount
@@ -879,10 +884,10 @@ func (b *Reader) writeBuf(w io.Writer) (int64, error) {
 // 则 Writer 不会再接受任何数据
 // 而且后续的写入操作都将返回错误信息
 type Writer struct {
-	err error
-	buf []byte
-	n   int
-	wr  io.Writer
+	err error     // 写过程中遇到的错误
+	buf []byte    // 缓存
+	n   int       // 当前缓存中的字节数
+	wr  io.Writer // 底层的io.Writer
 }
 
 // NewWriterSize returns a new Writer whose buffer has at least the specified
