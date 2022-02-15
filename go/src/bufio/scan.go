@@ -241,7 +241,7 @@ func (s *Scanner) Scan() bool {
 				s.setErr(ErrTooLong)
 				return false
 			}
-			newSize := len(s.buf) * 2
+			newSize := len(s.buf) * 2 // buf 扩容
 			if newSize == 0 {
 				newSize = startBufSize
 			}
@@ -263,7 +263,7 @@ func (s *Scanner) Scan() bool {
 				s.setErr(ErrBadReadCount)
 				break
 			}
-			s.end += n
+			s.end += n // 游标移动， 用于判断是否需要扩容
 			if err != nil {
 				s.setErr(err)
 				break
@@ -405,18 +405,24 @@ func dropCR(data []byte) []byte {
 // The last non-empty line of input will be returned even if it has no
 // newline.
 func ScanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	// 表示已经扫描到结尾了
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
+	// 找到\n的位置
 	if i := bytes.IndexByte(data, '\n'); i >= 0 {
 		// We have a full newline-terminated line.
+		// 把下次开始读取的位置向前移动 i+1 位
 		return i + 1, dropCR(data[0:i]), nil
 	}
 	// If we're at EOF, we have a final, non-terminated line. Return it.
+	// reader内容全部读取完成, 但是内容不为空， 所以需要把剩余的数据返回
 	if atEOF {
 		return len(data), dropCR(data), nil
 	}
 	// Request more data.
+	// 表示现在不能分割， 向Reader请求更多的数据
+	// 可能会触发buf扩容
 	return 0, nil, nil
 }
 
