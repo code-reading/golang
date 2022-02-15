@@ -462,6 +462,7 @@ fmt.Printf("%c %v\n", c, size)
 }
 */
 func (b *Reader) ReadRune() (r rune, size int, err error) {
+	// 注意这里是一个循环， 每次都装数据到缓存buf中
 	for b.r+utf8.UTFMax > b.w && !utf8.FullRune(b.buf[b.r:b.w]) && b.err == nil && b.w-b.r < len(b.buf) {
 		b.fill() // b.w-b.r < len(buf) => buffer is not full
 	}
@@ -1132,7 +1133,7 @@ func (b *Writer) ReadFrom(r io.Reader) (n int64, err error) {
 	if b.err != nil {
 		return 0, b.err
 	}
-	if b.Buffered() == 0 {
+	if b.Buffered() == 0 { // 缓存中没有数据
 		if w, ok := b.wr.(io.ReaderFrom); ok {
 			n, err = w.ReadFrom(r)
 			b.err = err
@@ -1141,13 +1142,13 @@ func (b *Writer) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 	var m int
 	for {
-		if b.Available() == 0 {
+		if b.Available() == 0 { // 没有可写的缓存空间了
 			if err1 := b.Flush(); err1 != nil {
 				return n, err1
 			}
 		}
 		nr := 0
-		for nr < maxConsecutiveEmptyReads {
+		for nr < maxConsecutiveEmptyReads { // 最大连续空读次数 100
 			m, err = r.Read(b.buf[b.n:])
 			if m != 0 || err != nil {
 				break

@@ -18,6 +18,7 @@ import (
 )
 
 // Reads from a reader and rot13s the result.
+// 可以定义自己的Reader 修改缓存中数据
 type rot13Reader struct {
 	r io.Reader
 }
@@ -28,6 +29,7 @@ func newRot13Reader(r io.Reader) *rot13Reader {
 	return r13
 }
 
+// 实现了rot13Reader 自己的Read
 func (r13 *rot13Reader) Read(p []byte) (int, error) {
 	n, err := r13.r.Read(p)
 	for i := 0; i < n; i++ {
@@ -46,7 +48,7 @@ func readBytes(buf *Reader) string {
 	var b [1000]byte
 	nb := 0
 	for {
-		c, err := buf.ReadByte()
+		c, err := buf.ReadByte() // 按字节读取, 如果buf中没有会调用fill() 读取io中的数据， io会调用自己的Read
 		if err == io.EOF {
 			break
 		}
@@ -66,7 +68,7 @@ func TestReaderSimple(t *testing.T) {
 	if s := readBytes(b); s != "hello world" {
 		t.Errorf("simple hello world test failed: got %q", s)
 	}
-
+	// 修改缓存中的数据
 	b = NewReader(newRot13Reader(strings.NewReader(data)))
 	if s := readBytes(b); s != "uryyb jbeyq" {
 		t.Errorf("rot13 hello world test failed: got %q", s)
@@ -91,7 +93,7 @@ var readMakers = []readMaker{
 func readLines(b *Reader) string {
 	s := ""
 	for {
-		s1, err := b.ReadString('\n')
+		s1, err := b.ReadString('\n') // ReadString 返回的s1 会带\n换行符
 		if err == io.EOF {
 			break
 		}
