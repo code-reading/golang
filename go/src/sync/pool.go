@@ -13,55 +13,78 @@ import (
 
 // A Pool is a set of temporary objects that may be individually saved and
 // retrieved.
+// 一个临时对象集组成一个池，可单独保存和读取;
 //
 // Any item stored in the Pool may be removed automatically at any time without
 // notification. If the Pool holds the only reference when this happens, the
 // item might be deallocated.
+// 缓存对象随时可能被无通知的清除掉, 缓存对象占用的资源会被释放掉，
 //
 // A Pool is safe for use by multiple goroutines simultaneously.
+// 缓存池是协程安全的
 //
 // Pool's purpose is to cache allocated but unused items for later reuse,
 // relieving pressure on the garbage collector. That is, it makes it easy to
 // build efficient, thread-safe free lists. However, it is not suitable for all
 // free lists.
+// 缓存池的目的是缓存之后要在使用的分配对象， 减少GC回收压力
+// 即, 更容易的建立有效的，线程安全的列表
+// 但是并不适合所有需要缓存的列表
 //
 // An appropriate use of a Pool is to manage a group of temporary items
 // silently shared among and potentially reused by concurrent independent
 // clients of a package. Pool provides a way to amortize allocation overhead
 // across many clients.
+// 切当使用缓冲池的一个场景是管理一组可能在一个包独立并发中会重复使用到的临时对象
+// 缓存池提供一种为客服端摊销分配开销的解决方法
 //
 // An example of good use of a Pool is in the fmt package, which maintains a
 // dynamically-sized store of temporary output buffers. The store scales under
 // load (when many goroutines are actively printing) and shrinks when
 // quiescent.
+// 一个使用Pool的好的示例, 是在fmt pkg中 维护了一个动态大小的临时输出缓存
+// 这个存储随着goroutine中激活的printing调用可自动伸缩;
 //
 // On the other hand, a free list maintained as part of a short-lived object is
 // not a suitable use for a Pool, since the overhead does not amortize well in
 // that scenario. It is more efficient to have such objects implement their own
 // free list.
+// 另一个方面, 维护一个短期对象列表并不适合用Pool , 因为这种场景并没有很好的分摊分配开销;
+// 这种场景更适合专门定制
 //
 // A Pool must not be copied after first use.
+// 初次使用后不能复制，sync包大多跟并发控制相关，出于安全考虑（避免指针的复制使得指针污染不安全，误操作而使程序崩溃）不能复制
 type Pool struct {
+	// noCopy 是 Golang 源码中禁止拷贝的检测方法
 	noCopy noCopy
+	// local 是个数组，长度为 P 的个数。其元素类型是 poolLocal
+	// 这里面存储着各个 P 对应的本地对象池。可以近似的看做 [P]poolLocal
+	local unsafe.Pointer // local fixed-size per-P pool, actual type is [P]poolLocal
+	// 代表 local 数组的长度。因为 P 可以在运行时通过调用 runtime.GOMAXPROCS 进行修改,
+	// 因此我们还是得通过 localSize 来对应 local 数组的长度
+	localSize uintptr // size of the local array
 
-	local     unsafe.Pointer // local fixed-size per-P pool, actual type is [P]poolLocal
-	localSize uintptr        // size of the local array
-
+	// victim 和 victimSize 代表上一轮清理前的对象池，其内容语义 local 和 localSize 一致
 	victim     unsafe.Pointer // local from previous cycle
 	victimSize uintptr        // size of victims array
 
 	// New optionally specifies a function to generate
 	// a value when Get would otherwise return nil.
 	// It may not be changed concurrently with calls to Get.
+	// 用户提供的创建对象的函数。这个选项也不是必需。当不填的时候，Get 有可能返回 nil
 	New func() interface{}
 }
 
+// private 私有变量。Get 和 Put 操作都会优先存取 private 变量，
+// 如果 private 变量可以满足情况，则不再深入进行其他的复杂操作。
 // Local per-P Pool appendix.
 type poolLocalInternal struct {
 	private interface{} // Can be used only by the respective P.
-	shared  poolChain   // Local P can pushHead/popHead; any P can popTail.
+	// shared。其类型为 poolChain，从名字不难看出这个是链表结构，这个就是 P 的本地对象池
+	shared poolChain // Local P can pushHead/popHead; any P can popTail.
 }
 
+// 每个 P 都会有一个 poolLocal 的本地
 type poolLocal struct {
 	poolLocalInternal
 
@@ -101,12 +124,14 @@ func (p *Pool) Put(x interface{}) {
 	}
 	l, _ := p.pin()
 	if l.private == nil {
-		l.private = x
+		l.private = x // 将x 设置为private 之后 x 置空
 		x = nil
 	}
+	// 如果没有设置private 那么x 会被push 到shared
 	if x != nil {
 		l.shared.pushHead(x)
 	}
+	// 可以充许抢占P
 	runtime_procUnpin()
 	if race.Enabled {
 		race.Enable()
@@ -132,8 +157,11 @@ func (p *Pool) Get() interface{} {
 		// Try to pop the head of the local shard. We prefer
 		// the head over the tail for temporal locality of
 		// reuse.
+		//尝试从本地poolChain 中取数据
 		x, _ = l.shared.popHead()
 		if x == nil {
+			// 如果没有取到
+			// 尝试从其它P的缓冲池窃取对象
 			x = p.getSlow(pid)
 		}
 	}
@@ -157,6 +185,7 @@ func (p *Pool) getSlow(pid int) interface{} {
 	// Try to steal one element from other procs.
 	for i := 0; i < int(size); i++ {
 		l := indexLocal(locals, (pid+i+1)%int(size))
+		// 从其它poolChain 的尾部窃取数据，取到就返回
 		if x, _ := l.shared.popTail(); x != nil {
 			return x
 		}
@@ -165,6 +194,7 @@ func (p *Pool) getSlow(pid int) interface{} {
 	// Try the victim cache. We do this after attempting to steal
 	// from all primary caches because we want objects in the
 	// victim cache to age out if at all possible.
+	// 如果上面都取不到数据 就重试从上一轮清理的缓存victim中查找
 	size = atomic.LoadUintptr(&p.victimSize)
 	if uintptr(pid) >= size {
 		return nil
@@ -192,7 +222,9 @@ func (p *Pool) getSlow(pid int) interface{} {
 // pin pins the current goroutine to P, disables preemption and
 // returns poolLocal pool for the P and the P's id.
 // Caller must call runtime_procUnpin() when done with the pool.
+// 返回P对应的本地缓存池poolLocal
 func (p *Pool) pin() (*poolLocal, int) {
+	// procPin 表示暂时不许P被抢占
 	pid := runtime_procPin()
 	// In pinSlow we store to local and then to localSize, here we load in opposite order.
 	// Since we've disabled preemption, GC cannot happen in between.
@@ -223,6 +255,7 @@ func (p *Pool) pinSlow() (*poolLocal, int) {
 		allPools = append(allPools, p)
 	}
 	// If GOMAXPROCS changes between GCs, we re-allocate the array and lose the old one.
+	// 初始化local数组
 	size := runtime.GOMAXPROCS(0)
 	local := make([]poolLocal, size)
 	atomic.StorePointer(&p.local, unsafe.Pointer(&local[0])) // store-release

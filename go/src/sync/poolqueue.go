@@ -31,6 +31,8 @@ type poolDequeue struct {
 	// The head index is stored in the most-significant bits so
 	// that we can atomically add to it and the overflow is
 	// harmless.
+	// headTail 高32位保存的是head index
+	// 低32位保存的是tail index
 	headTail uint64
 
 	// vals is a ring buffer of interface{} values stored in this
@@ -41,6 +43,7 @@ type poolDequeue struct {
 	// index has moved beyond it and typ has been set to nil. This
 	// is set to nil atomically by the consumer and read
 	// atomically by the producer.
+	// vals 是一个ring buffer的双端队列, size 必须是2的倍数
 	vals []eface
 }
 
@@ -60,6 +63,7 @@ const dequeueLimit = (1 << dequeueBits) / 4
 // dequeueNil is used in poolDequeue to represent interface{}(nil).
 // Since we use nil to represent empty slots, we need a sentinel value
 // to represent nil.
+// 用来表示 nil
 type dequeueNil *struct{}
 
 func (d *poolDequeue) unpack(ptrs uint64) (head, tail uint32) {
@@ -124,6 +128,11 @@ func (d *poolDequeue) popHead() (interface{}, bool) {
 		// slot.
 		head--
 		ptrs2 := d.pack(head, tail)
+		// 如果多个 P 同时访问 ring buffer，在没有任何并发措施的情况下，两个 P 都可能会拿到对象，这肯定是不符合预期的。
+		// 在不引入 Mutex 锁的前提下，sync.Pool 是怎么实现的呢？
+		// sync.Pool 利用了 atomic 包中的 CAS 操作。
+		// 两个 P 都可能会拿到对象，但在最终设置 headTail 的时候，
+		// 只会有一个 P 调用 CAS 成功，另外一个 CAS 失败。
 		if atomic.CompareAndSwapUint64(&d.headTail, ptrs, ptrs2) {
 			// We successfully took back slot.
 			slot = &d.vals[head&uint32(len(d.vals)-1)]
@@ -191,6 +200,7 @@ func (d *poolDequeue) popTail() (interface{}, bool) {
 // dequeue fills up, this allocates a new one and only ever pushes to
 // the latest dequeue. Pops happen from the other end of the list and
 // once a dequeue is exhausted, it gets removed from the list.
+// poolChain 是一个动态大小的双端队列
 type poolChain struct {
 	// head is the poolDequeue to push to. This is only accessed
 	// by the producer, so doesn't need to be synchronized.
@@ -236,12 +246,13 @@ func (c *poolChain) pushHead(val interface{}) {
 		storePoolChainElt(&c.tail, d)
 	}
 
-	if d.pushHead(val) {
+	if d.pushHead(val) { //
 		return
 	}
 
 	// The current dequeue is full. Allocate a new one of twice
 	// the size.
+	// 如果buffer 满了， 下面就会新建一个 2倍Head的poolDequeue
 	newSize := len(d.vals) * 2
 	if newSize >= dequeueLimit {
 		// Can't make it any bigger.
