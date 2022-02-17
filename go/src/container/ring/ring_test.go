@@ -23,6 +23,10 @@ func dump(r *Ring) {
 	fmt.Println()
 }
 
+// verfiy 验证函数
+// r ring 指针
+// N ring 环长度
+// sum ring的内容之和
 func verify(t *testing.T, r *Ring, N int, sum int) {
 	// Len
 	n := r.Len()
@@ -163,13 +167,14 @@ func TestLink2(t *testing.T) {
 	r1b := &Ring{Value: 77}
 	r10 := makeN(10)
 
-	r1a.Link(r0)
+	// 注意link 的ring 不能是空的， 但是被link的可以是空的
+	r1a.Link(r0) // 一个非空ring link另外一个非nil ring
 	verify(t, r1a, 1, 42)
 
 	r1a.Link(r1b)
 	verify(t, r1a, 2, 42+77)
 
-	r10.Link(r0)
+	r10.Link(r0) // link 一个nil ring 不发生变化
 	verify(t, r10, 10, sumN(10))
 
 	r10.Link(r1a)
@@ -222,7 +227,8 @@ func TestLinkUnlink(t *testing.T) {
 // Test that calling Move() on an empty Ring initializes it.
 func TestMoveEmptyRing(t *testing.T) {
 	var r Ring
-
+	// 因为r 是nil ring  所以 r.Move(1) 只会返回一个init()之后的ring
+	// init()之后的ring  长度位1 ， 值为nil, 因为Value 是interface{}
 	r.Move(1)
 	verify(t, &r, 1, 0)
 }

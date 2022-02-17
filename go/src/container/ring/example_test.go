@@ -28,12 +28,14 @@ func ExampleRing_Next() {
 	n := r.Len()
 
 	// Initialize the ring with some integer values
+	// 初始化赋值
 	for i := 0; i < n; i++ {
 		r.Value = i
 		r = r.Next()
 	}
 
 	// Iterate through the ring and print its contents
+	// 迭代使用ring中的值
 	for j := 0; j < n; j++ {
 		fmt.Println(r.Value)
 		r = r.Next()
@@ -61,6 +63,7 @@ func ExampleRing_Prev() {
 	}
 
 	// Iterate through the ring backwards and print its contents
+	// 反向打印这些值
 	for j := 0; j < n; j++ {
 		r = r.Prev()
 		fmt.Println(r.Value)
@@ -88,6 +91,7 @@ func ExampleRing_Do() {
 	}
 
 	// Iterate through the ring and print its contents
+	// r.Do() 方法遍历
 	r.Do(func(p interface{}) {
 		fmt.Println(p.(int))
 	})
@@ -114,9 +118,11 @@ func ExampleRing_Move() {
 	}
 
 	// Move the pointer forward by three steps
+	// 移动引用指针
 	r = r.Move(3)
 
 	// Iterate through the ring and print its contents
+	// 因为移动了引用指针, 所以当前读取值的位置就发生了变化
 	r.Do(func(p interface{}) {
 		fmt.Println(p.(int))
 	})
@@ -151,6 +157,7 @@ func ExampleRing_Link() {
 	}
 
 	// Link ring r and ring s
+	// 将 r 和 s 连接成一个新的rs ring
 	rs := r.Link(s)
 
 	// Iterate through the combined ring and print its contents
@@ -179,6 +186,7 @@ func ExampleRing_Unlink() {
 	}
 
 	// Unlink three elements from r, starting from r.Next()
+	// 删除元素
 	r.Unlink(3)
 
 	// Iterate through the remaining ring and print its contents
