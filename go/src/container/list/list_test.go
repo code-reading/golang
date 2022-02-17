@@ -236,14 +236,16 @@ func TestIssue4103(t *testing.T) {
 
 func TestIssue6349(t *testing.T) {
 	l := New()
-	l.PushBack(1)
-	l.PushBack(2)
+	l.PushBack(1) // 1
+	l.PushBack(2) // 1 2
 
-	e := l.Front()
-	l.Remove(e)
+	e := l.Front() // 1
+	l.Remove(e)    // 2
 	if e.Value != 1 {
 		t.Errorf("e.value = %d, want 1", e.Value)
 	}
+	// 只有一个元素是 既没有前驱节点 也没有后继节点
+	// 所以其 e.Next() 和e.Prev()都应该为nil
 	if e.Next() != nil {
 		t.Errorf("e.Next() != nil")
 	}

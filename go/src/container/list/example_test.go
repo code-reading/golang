@@ -9,6 +9,7 @@ import (
 	"fmt"
 )
 
+// 链表的简单示例
 func Example() {
 	// Create a new list and put some numbers in it.
 	l := list.New()
