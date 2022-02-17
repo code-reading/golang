@@ -1,6 +1,10 @@
 
 ![bufio package](../resources/images/bufio-package.png)
 
+[分析示例:coding/bufio](../coding/bufio)
+
+[源码位置:/src/bufio](../go/src/bufio)
+
 ## bufio包介绍
 bufio包实现了有缓冲的I/O。它包装一个io.Reader或io.Writer接口对象，创建另一个也实现了该接口，且同时还提供了缓冲和一些文本I/O的帮助函数的对象。
 

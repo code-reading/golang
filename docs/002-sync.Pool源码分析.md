@@ -1,5 +1,10 @@
 ## sync.Pool 源码分析
 
+[分析示例:coding/sync](../coding/sync)
+
+[源码位置:/src/sync/pool](../go/src/sync.pool.go)
+
+
 sync.Pool 是 Golang 内置的对象池技术，可用于缓存临时对象，避免因频繁建立临时对象所带来的消耗以及对 GC 造成的压力。
 
 需要注意的是，sync.Pool 缓存的对象随时可能被无通知的清除，因此不能将 sync.Pool 用于存储持久对象的场景。
