@@ -15,6 +15,8 @@ const shortDuration = 1 * time.Millisecond // a reasonable duration to block in 
 // This example demonstrates the use of a cancelable context to prevent a
 // goroutine leak. By the end of the example function, the goroutine started
 // by gen will return without leaking.
+// ExpWithCancel 实现了一个整数生成器
+// 由调用方控制生成多少整数, 结束之后 调用方负责cancel 这个goroutine
 func ExampleWithCancel() {
 	// gen generates integers in a separate goroutine and
 	// sends them to the returned channel.
@@ -27,7 +29,7 @@ func ExampleWithCancel() {
 		go func() {
 			for {
 				select {
-				case <-ctx.Done():
+				case <-ctx.Done(): // 结束之后要返回, 防止goroutine 泄露
 					return // returning not to leak the goroutine
 				case dst <- n:
 					n++
@@ -63,6 +65,7 @@ func ExampleWithDeadline() {
 	// Even though ctx will be expired, it is good practice to call its
 	// cancellation function in any case. Failure to do so may keep the
 	// context and its parent alive longer than necessary.
+	// 即使WithDeadline 自己超时关闭了， 还是建议手动调用cancel一次
 	defer cancel()
 
 	select {
@@ -78,6 +81,8 @@ func ExampleWithDeadline() {
 
 // This example passes a context with a timeout to tell a blocking function that
 // it should abandon its work after the timeout elapses.
+// WithTimeout 指从执行开始计时过timeout 超时
+// WithDeadline 则可以指定基于某个时间过多久超时
 func ExampleWithTimeout() {
 	// Pass a context with a timeout to tell a blocking function that it
 	// should abandon its work after the timeout elapses.
@@ -97,6 +102,7 @@ func ExampleWithTimeout() {
 
 // This example demonstrates how a value can be passed to the context
 // and also how to retrieve it if it exists.
+// 传递值
 func ExampleWithValue() {
 	type favContextKey string
 
