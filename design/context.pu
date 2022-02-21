@@ -1,0 +1,57 @@
+@startuml
+' 单行注释
+/'
+    多行注释
+    多行注释
+'/
+' golang 中没有面向对象中的class类关键字
+' 可以通过结构体内嵌匿名结构体来模拟继承关系
+hide empty fields 
+interface Context
+interface canceler
+
+interface Context{
+    +Deadline() (deadline time.Time, ok bool)
+	+Done() <-chan struct{}
+	+Err() error
+	+Value(key interface{}) interface{}
+}
+
+interface canceler{
+    +cancel(removeFromParent bool, err error)
+	+Done() <-chan struct{}
+}
+
+class emptyCtx {
+    +String() string
+} 
+class valueCtx {
+    Context
+	key, val interface{}
+    +String() string
+}
+
+class cancelCtx {
+    Context
+	mu sync.Mutex
+	done atomic.Value
+	children map[canceler]struct{} 
+	err      error
+    +String() string            
+}
+
+class timerCtx {
+    cancelCtx
+	timer *time.Timer
+	deadline time.Time
+    +String() string
+}
+Context <|.. emptyCtx
+canceler <|.. cancelCtx
+Context <|-- cancelCtx
+cancelCtx <|-- timerCtx
+Context <|-- valueCtx
+
+
+
+@enduml
