@@ -131,7 +131,7 @@ func (e Errno) Is(target error) bool {
 		return e == EACCES || e == EPERM
 	case oserror.ErrExist:
 		return e == EEXIST || e == ENOTEMPTY
-	case oserror.ErrNotExist:
+	case oserror.ErrNotExist: // 判断target为此类型， 然后定义比较逻辑 e == ENOENT
 		return e == ENOENT
 	}
 	return false

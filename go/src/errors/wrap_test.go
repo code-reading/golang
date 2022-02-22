@@ -241,7 +241,7 @@ func (errorUncomparable) Is(target error) bool {
 
 func ExampleIs() {
 	if _, err := os.Open("non-existing"); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) { // 判断错误是不是fs.ErrNotExist
 			fmt.Println("file does not exist")
 		} else {
 			fmt.Println(err)
@@ -254,6 +254,7 @@ func ExampleIs() {
 
 func ExampleAs() {
 	if _, err := os.Open("non-existing"); err != nil {
+		// os.Open 返回的错误类型 是  *fs.PathError
 		var pathError *fs.PathError
 		if errors.As(err, &pathError) {
 			fmt.Println("Failed at path:", pathError.Path)

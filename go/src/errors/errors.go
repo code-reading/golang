@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package errors implements functions to manipulate errors.
-//
+// errors 实现了处理error 的函数
 // The New function creates errors whose only content is a text message.
 //
 // The Unwrap, Is and As functions work on errors that may wrap other errors.
@@ -60,6 +60,7 @@ func New(text string) error {
 }
 
 // errorString is a trivial implementation of error.
+// 简单实现
 type errorString struct {
 	s string
 }
