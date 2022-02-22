@@ -1,0 +1,8 @@
+@startuml
+skinparam Handwritten true
+rectangle "   Module\nComponent\n         { }"  #line:blue;line.dotted;text:blue;
+rectangle " Module\nService\n     { }"  #line:blue;line.dotted;text:blue;
+rectangle "Module\n value\n     { }"  #line:blue;line.dotted;text:blue;
+rectangle "Module\n    Fn\n     { }"  #line:blue;line.dotted;text:blue;
+
+@enduml
