@@ -331,12 +331,12 @@ func goschedguarded() {
 
 // Puts the current goroutine into a waiting state and calls unlockf on the
 // system stack.
-//
+// 将当前goroutine 置为一个等待状态，并且调用系统栈的unlockf
 // If unlockf returns false, the goroutine is resumed.
-//
+// 如果 unlockf 返回false 则 goroutine 解锁
 // unlockf must not access this G's stack, as it may be moved between
 // the call to gopark and the call to unlockf.
-//
+// unlockf 禁止进入这个Goroutine栈, 在调用gopark 和unlockf 可能会被moved
 // Note that because unlockf is called after putting the G into a waiting
 // state, the G may have already been readied by the time unlockf is called
 // unless there is external synchronization preventing the G from being
@@ -6273,6 +6273,7 @@ func (q *gQueue) popList() gList {
 
 // A gList is a list of Gs linked through g.schedlink. A G can only be
 // on one gQueue or gList at a time.
+// goroutine 调度链, 一个goroutine 同一时间只能在某个调度链或者g队列中
 type gList struct {
 	head guintptr
 }
@@ -6284,8 +6285,8 @@ func (l *gList) empty() bool {
 
 // push adds gp to the head of l.
 func (l *gList) push(gp *g) {
-	gp.schedlink = l.head
-	l.head.set(gp)
+	gp.schedlink = l.head // schedlink 保存head 的地址
+	l.head.set(gp)        // 将gp 的地址赋值给head
 }
 
 // pushAll prepends all Gs in q to l.
